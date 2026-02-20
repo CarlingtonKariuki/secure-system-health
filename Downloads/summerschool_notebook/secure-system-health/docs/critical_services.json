@@ -1,0 +1,6 @@
+{
+  "critical_services": [
+    "ssh",
+    "systemd-journald"
+  ]
+}
