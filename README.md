@@ -1,21 +1,88 @@
 # Secure Systems Health & Cyber Readiness Tool (SSHCR)
 
-SSHCR is a modular CLI for system health, network readiness, and security baseline assessments.
+SSHCR is a modular CLI assessment tool for system health, network readiness, and security baseline validation.
 
-## Structure
+## Current Capabilities
 
-- `src/main.py`: CLI entry point
-- `src/system_checks.py`: system health checks
-- `src/network_checks.py`: network readiness checks
-- `src/security_checks.py`: security baseline checks
-- `src/report_generator.py`: report generation
+- System health checks:
+  - OS/uptime
+  - CPU and memory pressure
+  - disk and inode usage
+  - critical services
+  - log growth
+  - time sync signal
 
-## Usage (planned)
+- Network checks:
+  - active interfaces
+  - listening ports
+  - port-to-process mapping
+  - allowed ports policy validation
+  - firewall visibility
+  - DNS/default route checks
+  - network baseline drift detection
+
+- Security checks:
+  - identity and privilege controls
+  - password and lockout policy checks
+  - SSH hardening and crypto posture checks
+  - patch backlog and auto-update posture
+  - sudoers quality controls
+  - host hardening sysctl baseline checks
+
+- Reporting:
+  - Markdown output in `reports/`
+  - status summary
+  - priority remediation section
+  - control IDs, confidence, and recommendations
+
+## Project Layout
+
+- `src/main.py`: CLI orchestration
+- `src/system_checks.py`: system module
+- `src/network_checks.py`: network module
+- `src/security_checks.py`: security orchestration
+- `src/security/collectors.py`: security evidence collection
+- `src/security/evaluators.py`: security control evaluation
+- `src/report_generator.py`: report rendering
+- `docs/security_policy.json`: policy thresholds and baseline values
+- `docs/security_control_catalog.md`: control ID catalog
+- `docs/allowed_ports.json`: network exposure baseline
+
+## Quick Start
 
 ```bash
-python src/main.py --full-assessment --output md
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Run one module:
+
+```bash
+python3 src/main.py --health --output md
+python3 src/main.py --network --output md
+python3 src/main.py --security --output md
+```
+
+Run full assessment:
+
+```bash
+python3 src/main.py --full-assessment --output md
+```
+
+Reports are generated as:
+
+- `reports/sshcr_report_<YYYY-MM-DD>.md`
+
+## Smoke Testing
+
+Run the built-in smoke tests:
+
+```bash
+python3 -m unittest discover -s tests -p "test_*.py"
 ```
 
 ## Notes
 
-This repository currently contains scaffolding only. See TODOs in each module.
+- Markdown is the current supported report output format.
+- Some checks are privilege-sensitive and will report lower confidence without elevated permissions.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Any
 import os
 
@@ -51,7 +51,7 @@ def _render_markdown(results: Dict[str, List[Dict[str, Any]]]) -> str:
     lines = []
     lines.append("# System Health & Cyber Readiness Assessment")
     lines.append("")
-    lines.append(f"**Assessment Date:** {datetime.utcnow().strftime('%Y-%m-%d')}")
+    lines.append(f"**Assessment Date:** {datetime.now(timezone.utc).strftime('%Y-%m-%d')}")
     lines.append("")
     lines.append("## Summary")
     lines.append("")
@@ -106,7 +106,7 @@ def generate_report(
     reports_dir = os.path.abspath(reports_dir)
     os.makedirs(reports_dir, exist_ok=True)
 
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d")
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"{report_name}_{timestamp}.{output_format}"
     path = os.path.join(reports_dir, filename)
 
