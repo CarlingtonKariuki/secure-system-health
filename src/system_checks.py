@@ -1,35 +1,26 @@
 """System health checks for SSHCR."""
-
 from __future__ import annotations
-
 from typing import Dict, List, Any, Tuple
 import json
 import os
 import platform
 import shutil
 import subprocess
-
-
 def _status_from_threshold(value: float, warn: float, risk: float) -> str:
     if value >= risk:
         return "RISK"
     if value >= warn:
         return "WARNING"
     return "OK"
-
-
 def _read_first_line(path: str) -> str:
     try:
         with open(path, "r", encoding="utf-8") as handle:
             return handle.readline().strip()
     except OSError:
         return ""
-
-
 def _get_os_pretty_name() -> str:
     line = _read_first_line("/etc/os-release")
     if line:
-        # First line is usually NAME or PRETTY_NAME; parse all for robustness.
         try:
             with open("/etc/os-release", "r", encoding="utf-8") as handle:
                 for raw in handle:
@@ -38,16 +29,12 @@ def _get_os_pretty_name() -> str:
         except OSError:
             pass
     return platform.platform()
-
-
 def _get_uptime_seconds() -> float:
     try:
         with open("/proc/uptime", "r", encoding="utf-8") as handle:
             return float(handle.read().split()[0])
     except (OSError, ValueError, IndexError):
         return 0.0
-
-
 def _format_uptime(seconds: float) -> str:
     if seconds <= 0:
         return "unknown"
@@ -59,19 +46,13 @@ def _format_uptime(seconds: float) -> str:
     if hours > 0:
         return f"{hours}h {minutes % 60}m"
     return f"{minutes}m"
-
-
 def _get_load_1min() -> float:
     try:
         return os.getloadavg()[0]
     except OSError:
         return 0.0
-
-
 def _get_cpu_count() -> int:
     return os.cpu_count() or 1
-
-
 def _get_memory_info() -> Tuple[int, int, float]:
     total = 0
     available = 0
@@ -89,29 +70,17 @@ def _get_memory_info() -> Tuple[int, int, float]:
     except (OSError, ValueError):
         pass
     return 0, 0, 0.0
-
-
 def _is_relevant_mount(device: str, mountpoint: str, fstype: str, options: str) -> bool:
     if not device.startswith("/dev/"):
         return False
-    ignored_fs = {
-        "tmpfs",
-        "devtmpfs",
-        "squashfs",
-        "iso9660",
-        "overlay",
-        "aufs",
-    }
+    ignored_fs = {"tmpfs", "devtmpfs", "squashfs", "iso9660", "overlay", "aufs"}
     if fstype in ignored_fs:
         return False
     if mountpoint.startswith("/snap/"):
         return False
-    mount_options = set(options.split(","))
-    if "ro" in mount_options:
+    if "ro" in set(options.split(",")):
         return False
     return True
-
-
 def _get_disk_usages() -> List[Tuple[str, float, int, int]]:
     results: List[Tuple[str, float, int, int]] = []
     try:
@@ -132,8 +101,6 @@ def _get_disk_usages() -> List[Tuple[str, float, int, int]]:
     except OSError:
         pass
     return results
-
-
 def _get_inode_usages() -> List[Tuple[str, float]]:
     results: List[Tuple[str, float]] = []
     try:
@@ -158,8 +125,6 @@ def _get_inode_usages() -> List[Tuple[str, float]]:
     except OSError:
         pass
     return results
-
-
 def _systemctl_is_active(service: str) -> bool:
     try:
         result = subprocess.run(
@@ -172,16 +137,14 @@ def _systemctl_is_active(service: str) -> bool:
         return result.stdout.strip() == "active"
     except OSError:
         return False
-
-
 def _check_services(services: List[str]) -> Tuple[str, str]:
     missing = [name for name in services if not _systemctl_is_active(name)]
     if missing:
         return "WARNING", f"Not active: {', '.join(missing)}"
     return "OK", "All critical services active"
-
-
-def _check_log_growth(log_dir: str = "/var/log", warn_mb: int = 512, risk_mb: int = 2048) -> Tuple[str, str]:
+def _check_log_growth(
+    log_dir: str = "/var/log", warn_mb: int = 512, risk_mb: int = 2048
+) -> Tuple[str, str]:
     try:
         total_bytes = 0
         for root, _, files in os.walk(log_dir):
@@ -196,8 +159,6 @@ def _check_log_growth(log_dir: str = "/var/log", warn_mb: int = 512, risk_mb: in
         return status, f"{total_mb:.1f} MB in {log_dir}"
     except OSError:
         return "WARNING", "Unable to read log directory"
-
-
 def _load_critical_services() -> List[str]:
     default_services = ["ssh", "systemd-journald"]
     config_path = os.path.join(
@@ -212,8 +173,6 @@ def _load_critical_services() -> List[str]:
     except (OSError, json.JSONDecodeError):
         pass
     return default_services
-
-
 def _check_time_sync() -> Tuple[str, str]:
     try:
         result = subprocess.run(
@@ -231,144 +190,161 @@ def _check_time_sync() -> Tuple[str, str]:
     except OSError:
         pass
     return "WARNING", "Unable to determine NTP sync status"
-
-
 def _risk_score(status: str) -> int:
     if status == "RISK":
         return 85
     if status == "WARNING":
         return 55
     return 10
-
-
+def _finding(
+    category: str,
+    control_id: str,
+    check: str,
+    status: str,
+    details: str,
+    reason: str,
+    recommendation: str,
+    confidence: str = "high",
+) -> Dict[str, Any]:
+    return {
+        "category": category,
+        "control_id": control_id,
+        "check": check,
+        "status": status,
+        "risk_score": _risk_score(status),
+        "details": details,
+        "reason": reason,
+        "recommendation": recommendation,
+        "confidence": confidence,
+    }
 def run_system_health_checks() -> List[Dict[str, Any]]:
     """Run system health checks and return structured findings."""
     findings: List[Dict[str, Any]] = []
-
     os_name = _get_os_pretty_name()
     uptime_seconds = _get_uptime_seconds()
     uptime_str = _format_uptime(uptime_seconds)
     os_status = "OK" if uptime_seconds > 0 else "WARNING"
     findings.append(
-        {
-            "category": "System",
-            "check": "OS version & uptime",
-            "status": os_status,
-            "details": f"{os_name}, uptime {uptime_str}",
-            "risk_score": _risk_score(os_status),
-            "reason": "Baseline host identification and uptime evidence",
-        }
+        _finding(
+            "System", "SYS-001", "OS version & uptime", os_status,
+            f"{os_name}, uptime {uptime_str}",
+            "Baseline host identification and uptime evidence.",
+            "Document OS version and uptime in commissioning records." if os_status == "OK"
+            else "Investigate why uptime could not be determined; check /proc/uptime.",
+            confidence="medium",
+        )
     )
-
     load_1 = _get_load_1min()
     cpu_count = _get_cpu_count()
     load_per_cpu = (load_1 / cpu_count) if cpu_count else load_1
     load_status = _status_from_threshold(load_per_cpu * 100, warn=70.0, risk=90.0)
     findings.append(
-        {
-            "category": "System",
-            "check": "CPU load (1m)",
-            "status": load_status,
-            "details": f"Load {load_1:.2f} across {cpu_count} CPU(s)",
-            "risk_score": _risk_score(load_status),
-            "reason": "Sustained high load can degrade service availability",
-        }
+        _finding(
+            "System", "SYS-002", "CPU load (1m)", load_status,
+            f"Load {load_1:.2f} across {cpu_count} CPU(s)",
+            "Sustained high load can degrade service availability.",
+            "Identify high-CPU processes with `top` or `ps aux --sort=-%cpu`."
+            if load_status != "OK"
+            else "Monitor load trends during peak operating windows.",
+            confidence="medium",
+        )
     )
-
     mem_total, mem_available, mem_used_percent = _get_memory_info()
     mem_status = _status_from_threshold(mem_used_percent, warn=80.0, risk=90.0)
     if mem_total > 0:
         details = f"Used {mem_used_percent:.1f}% of {mem_total / (1024**3):.1f} GB"
+        recommendation = (
+            "Identify memory-heavy processes with `ps aux --sort=-%mem` and consider adding swap or RAM."
+            if mem_status != "OK"
+            else "Monitor memory usage trends; set alerting at 85% threshold."
+        )
     else:
         details = "Memory stats unavailable"
         mem_status = "WARNING"
+        recommendation = "Verify /proc/meminfo is accessible and re-run with sufficient privileges."
     findings.append(
-        {
-            "category": "System",
-            "check": "Memory usage",
-            "status": mem_status,
-            "details": details,
-            "risk_score": _risk_score(mem_status),
-            "reason": "Memory pressure impacts stability and response time",
-        }
+        _finding(
+            "System", "SYS-003", "Memory usage", mem_status,
+            details,
+            "Memory pressure impacts stability and response time.",
+            recommendation,
+            confidence="medium",
+        )
     )
-
     disks = _get_disk_usages()
     if not disks:
         findings.append(
-            {
-                "category": "Storage",
-                "check": "Disk usage",
-                "status": "WARNING",
-                "details": "No disk usage data found",
-                "risk_score": _risk_score("WARNING"),
-                "reason": "Cannot confirm disk headroom for safe operation",
-            }
+            _finding(
+                "Storage", "STG-001", "Disk usage", "WARNING",
+                "No disk usage data found",
+                "Cannot confirm disk headroom for safe operation.",
+                "Check /proc/mounts and verify disk devices are accessible.",
+            )
         )
     else:
-        for mountpoint, percent, used, total in disks:
+        for idx, (mountpoint, percent, used, total) in enumerate(disks, start=1):
             status = _status_from_threshold(percent, warn=80.0, risk=90.0)
             findings.append(
-                {
-                    "category": "Storage",
-                    "check": f"Disk usage {mountpoint}",
-                    "status": status,
-                    "details": f"{percent:.1f}% used ({used / (1024**3):.1f} GB / {total / (1024**3):.1f} GB)",
-                    "risk_score": _risk_score(status),
-                    "reason": "Low free space can cause service failures",
-                }
+                _finding(
+                    "Storage", f"STG-{idx:03d}", f"Disk usage {mountpoint}", status,
+                    f"{percent:.1f}% used ({used / (1024**3):.1f} GB / {total / (1024**3):.1f} GB)",
+                    "Low free space can cause service failures and logging gaps.",
+                    f"Free space on {mountpoint}: remove unused files, rotate logs, or expand volume."
+                    if status != "OK"
+                    else f"Monitor {mountpoint} usage; alert at 80% threshold.",
+                    confidence="high",
+                )
             )
-
     inode_usages = _get_inode_usages()
     if inode_usages:
-        for mountpoint, percent in inode_usages:
+        for idx, (mountpoint, percent) in enumerate(inode_usages, start=1):
             status = _status_from_threshold(percent, warn=70.0, risk=90.0)
             findings.append(
-                {
-                    "category": "Storage",
-                    "check": f"Inode usage {mountpoint}",
-                    "status": status,
-                    "details": f"{percent:.1f}% inode usage",
-                    "risk_score": _risk_score(status),
-                    "reason": "Inode exhaustion breaks file creation and logging",
-                }
+                _finding(
+                    "Storage", f"INO-{idx:03d}", f"Inode usage {mountpoint}", status,
+                    f"{percent:.1f}% inode usage",
+                    "Inode exhaustion breaks file creation and logging.",
+                    f"Run `find {mountpoint} -xdev -printf '%h\\\\n' | sort | uniq -c | sort -rn | head` to locate inode-heavy directories."
+                    if status != "OK"
+                    else "Inode usage is healthy; no action required.",
+                    confidence="high",
+                )
             )
-
     services = _load_critical_services()
-    status, details = _check_services(services)
+    svc_status, svc_details = _check_services(services)
     findings.append(
-        {
-            "category": "Services",
-            "check": "Critical services",
-            "status": status,
-            "details": details,
-            "risk_score": _risk_score(status),
-            "reason": "Required services must be available before commissioning",
-        }
+        _finding(
+            "Services", "SVC-001", "Critical services", svc_status,
+            svc_details,
+            "Required services must be available before commissioning.",
+            "Start missing services with `systemctl start <service>` and enable on boot with `systemctl enable <service>`."
+            if svc_status != "OK"
+            else "All critical services are running. Verify auto-start is configured with `systemctl is-enabled`.",
+            confidence="high",
+        )
     )
-
     log_status, log_details = _check_log_growth()
     findings.append(
-        {
-            "category": "Logs",
-            "check": "Log growth",
-            "status": log_status,
-            "details": log_details,
-            "risk_score": _risk_score(log_status),
-            "reason": "Runaway logs can exhaust disk and reduce availability",
-        }
+        _finding(
+            "Logs", "LOG-001", "Log growth", log_status,
+            log_details,
+            "Runaway logs can exhaust disk and reduce availability.",
+            "Configure logrotate for /var/log and review journald retention in /etc/systemd/journald.conf."
+            if log_status != "OK"
+            else "Log volume is within normal range; ensure logrotate is scheduled.",
+            confidence="medium",
+        )
     )
-
     time_status, time_details = _check_time_sync()
     findings.append(
-        {
-            "category": "System",
-            "check": "Time synchronization",
-            "status": time_status,
-            "details": time_details,
-            "risk_score": _risk_score(time_status),
-            "reason": "Accurate time is required for audit and incident response",
-        }
+        _finding(
+            "System", "SYS-004", "Time synchronization", time_status,
+            time_details,
+            "Accurate time is required for audit trails and incident response.",
+            "Enable NTP with `timedatectl set-ntp true` and verify with `timedatectl status`."
+            if time_status != "OK"
+            else "NTP is synchronized. Confirm NTP servers are reachable and accurate.",
+            confidence="high",
+        )
     )
-
     return findings
