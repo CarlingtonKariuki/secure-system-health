@@ -24,6 +24,20 @@ def _default_risk_score(status: str) -> int:
     return 10
 
 
+def _priority_findings(findings: List[Dict[str, Any]], limit: int = 5) -> List[Dict[str, Any]]:
+    actionable = [
+        item
+        for item in findings
+        if item.get("status") in {"RISK", "WARNING"}
+    ]
+    sorted_items = sorted(
+        actionable,
+        key=lambda item: item.get("risk_score", _default_risk_score(item.get("status", "OK"))),
+        reverse=True,
+    )
+    return sorted_items[:limit]
+
+
 def _render_markdown(results: Dict[str, List[Dict[str, Any]]]) -> str:
     all_findings: List[Dict[str, Any]] = []
     for group in results.values():
@@ -43,18 +57,36 @@ def _render_markdown(results: Dict[str, List[Dict[str, Any]]]) -> str:
     lines.append("")
     lines.append(summary)
     lines.append("")
+    lines.append("## Priority Remediation")
+    lines.append("")
+    priorities = _priority_findings(all_findings, limit=5)
+    if priorities:
+        for item in priorities:
+            control_id = item.get("control_id", "N/A")
+            check = item.get("check", "")
+            status = item.get("status", "")
+            recommendation = item.get("recommendation", "Review and remediate.")
+            lines.append(f"- `{control_id}` {check} [{status}]: {recommendation}")
+    else:
+        lines.append("- No WARNING/RISK findings detected.")
+    lines.append("")
     lines.append("## Findings")
     lines.append("")
-    lines.append("| Category | Check | Status | Risk Score | Details | Reason |")
-    lines.append("| --- | --- | --- | --- | --- | --- |")
+    lines.append("| Category | Control ID | Check | Status | Risk Score | Confidence | Details | Reason | Recommendation |")
+    lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for item in all_findings:
         category = item.get("category", "")
+        control_id = item.get("control_id", "")
         check = item.get("check", "")
         status = item.get("status", "")
         risk_score = item.get("risk_score", _default_risk_score(status))
+        confidence = item.get("confidence", "medium")
         details = item.get("details", "")
         reason = item.get("reason", "Pending implementation detail")
-        lines.append(f"| {category} | {check} | {status} | {risk_score} | {details} | {reason} |")
+        recommendation = item.get("recommendation", "Pending implementation detail")
+        lines.append(
+            f"| {category} | {control_id} | {check} | {status} | {risk_score} | {confidence} | {details} | {reason} | {recommendation} |"
+        )
 
     return "\n".join(lines)
 
