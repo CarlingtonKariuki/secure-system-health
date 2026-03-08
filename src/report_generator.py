@@ -16,6 +16,14 @@ def _status_counts(findings: List[Dict[str, Any]]) -> Dict[str, int]:
     return counts
 
 
+def _default_risk_score(status: str) -> int:
+    if status == "RISK":
+        return 85
+    if status == "WARNING":
+        return 55
+    return 10
+
+
 def _render_markdown(results: Dict[str, List[Dict[str, Any]]]) -> str:
     all_findings: List[Dict[str, Any]] = []
     for group in results.values():
@@ -43,9 +51,9 @@ def _render_markdown(results: Dict[str, List[Dict[str, Any]]]) -> str:
         category = item.get("category", "")
         check = item.get("check", "")
         status = item.get("status", "")
-        risk_score = item.get("risk_score", "")
+        risk_score = item.get("risk_score", _default_risk_score(status))
         details = item.get("details", "")
-        reason = item.get("reason", "")
+        reason = item.get("reason", "Pending implementation detail")
         lines.append(f"| {category} | {check} | {status} | {risk_score} | {details} | {reason} |")
 
     return "\n".join(lines)

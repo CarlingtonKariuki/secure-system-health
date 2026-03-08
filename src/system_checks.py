@@ -91,22 +91,44 @@ def _get_memory_info() -> Tuple[int, int, float]:
     return 0, 0, 0.0
 
 
+def _is_relevant_mount(device: str, mountpoint: str, fstype: str, options: str) -> bool:
+    if not device.startswith("/dev/"):
+        return False
+    ignored_fs = {
+        "tmpfs",
+        "devtmpfs",
+        "squashfs",
+        "iso9660",
+        "overlay",
+        "aufs",
+    }
+    if fstype in ignored_fs:
+        return False
+    if mountpoint.startswith("/snap/"):
+        return False
+    mount_options = set(options.split(","))
+    if "ro" in mount_options:
+        return False
+    return True
+
+
 def _get_disk_usages() -> List[Tuple[str, float, int, int]]:
     results: List[Tuple[str, float, int, int]] = []
     try:
         with open("/proc/mounts", "r", encoding="utf-8") as handle:
             for line in handle:
                 parts = line.split()
-                if len(parts) < 3:
+                if len(parts) < 4:
                     continue
-                device, mountpoint, fstype = parts[0], parts[1], parts[2]
-                if device.startswith("/dev/") and fstype not in {"tmpfs", "devtmpfs"}:
-                    try:
-                        usage = shutil.disk_usage(mountpoint)
-                    except OSError:
-                        continue
-                    percent = (usage.used / usage.total) * 100.0 if usage.total else 0.0
-                    results.append((mountpoint, percent, usage.used, usage.total))
+                device, mountpoint, fstype, options = parts[0], parts[1], parts[2], parts[3]
+                if not _is_relevant_mount(device, mountpoint, fstype, options):
+                    continue
+                try:
+                    usage = shutil.disk_usage(mountpoint)
+                except OSError:
+                    continue
+                percent = (usage.used / usage.total) * 100.0 if usage.total else 0.0
+                results.append((mountpoint, percent, usage.used, usage.total))
     except OSError:
         pass
     return results
@@ -118,20 +140,21 @@ def _get_inode_usages() -> List[Tuple[str, float]]:
         with open("/proc/mounts", "r", encoding="utf-8") as handle:
             for line in handle:
                 parts = line.split()
-                if len(parts) < 3:
+                if len(parts) < 4:
                     continue
-                device, mountpoint, fstype = parts[0], parts[1], parts[2]
-                if device.startswith("/dev/") and fstype not in {"tmpfs", "devtmpfs"}:
-                    try:
-                        stats = os.statvfs(mountpoint)
-                    except OSError:
-                        continue
-                    total = stats.f_files
-                    free = stats.f_ffree
-                    if total > 0:
-                        used = total - free
-                        percent = (used / total) * 100.0
-                        results.append((mountpoint, percent))
+                device, mountpoint, fstype, options = parts[0], parts[1], parts[2], parts[3]
+                if not _is_relevant_mount(device, mountpoint, fstype, options):
+                    continue
+                try:
+                    stats = os.statvfs(mountpoint)
+                except OSError:
+                    continue
+                total = stats.f_files
+                free = stats.f_ffree
+                if total > 0:
+                    used = total - free
+                    percent = (used / total) * 100.0
+                    results.append((mountpoint, percent))
     except OSError:
         pass
     return results
