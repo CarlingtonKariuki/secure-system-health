@@ -1,0 +1,10 @@
+# Runtime
+flask>=3.0.0
+gunicorn>=21.2.0
+
+# Dev / CI only
+pytest>=7.4.0
+pytest-cov>=4.1.0
+flake8>=6.1.0
+black>=23.0.0
+mypy>=1.6.0

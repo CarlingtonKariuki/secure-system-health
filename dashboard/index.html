@@ -1,0 +1,1812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SSHCR — Command Operations Center</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;600;700;900&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {
+  --gold: #c9a84c;
+  --gold-bright: #f0c040;
+  --gold-dim: #7a6020;
+  --gold-glow: rgba(201,168,76,0.35);
+  --dark: #080a0e;
+  --dark2: #0d1017;
+  --dark3: #12161f;
+  --dark4: #1a2030;
+  --dark5: #222840;
+  --text: #d4c89a;
+  --text-dim: #6b6040;
+  --text-bright: #f5e8c0;
+  --red: #c0392b;
+  --red-glow: rgba(192,57,43,0.4);
+  --warn: #c07820;
+  --warn-glow: rgba(192,120,32,0.4);
+  --ok: #2e7d52;
+  --ok-glow: rgba(46,125,82,0.4);
+  --border: rgba(201,168,76,0.2);
+  --border-bright: rgba(201,168,76,0.5);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--dark);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* ── CANVAS BACKGROUND ── */
+#bg-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── SCANLINES OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.08) 2px,
+    rgba(0,0,0,0.08) 4px
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ── VIGNETTE ── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%);
+  z-index: 1;
+  pointer-events: none;
+}
+
+#app { position: relative; z-index: 2; }
+
+/* ── HEADER ── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  height: 72px;
+  background: linear-gradient(90deg, rgba(8,10,14,0.98) 0%, rgba(13,16,23,0.95) 50%, rgba(8,10,14,0.98) 100%);
+  border-bottom: 1px solid var(--border-bright);
+  box-shadow: 0 0 40px rgba(201,168,76,0.1), inset 0 -1px 0 var(--gold-dim);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.badge-emblem {
+  width: 48px;
+  height: 48px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.badge-emblem svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 8px var(--gold));
+  animation: emblem-pulse 3s ease-in-out infinite;
+}
+
+@keyframes emblem-pulse {
+  0%, 100% { filter: drop-shadow(0 0 6px var(--gold)); }
+  50% { filter: drop-shadow(0 0 14px var(--gold-bright)); }
+}
+
+.header-title {
+  display: flex;
+  flex-direction: column;
+}
+
+.header-title h1 {
+  font-family: 'Orbitron', monospace;
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--gold-bright);
+  letter-spacing: 4px;
+  text-shadow: 0 0 20px var(--gold-glow);
+  line-height: 1;
+}
+
+.header-title .sub {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 3px;
+  margin-top: 3px;
+}
+
+.header-center {
+  display: flex;
+  gap: 4px;
+}
+
+.nav-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  padding: 6px 16px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.nav-btn:hover, .nav-btn.active {
+  color: var(--gold);
+  border-color: var(--border);
+  background: rgba(201,168,76,0.06);
+}
+
+.nav-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0; right: 0;
+  height: 2px;
+  background: var(--gold);
+  box-shadow: 0 0 8px var(--gold);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 8px var(--ok);
+  animation: blink 2s ease-in-out infinite;
+}
+
+.dot.idle { background: var(--gold-dim); box-shadow: 0 0 6px var(--gold-dim); animation: none; }
+.dot.running { background: var(--gold-bright); box-shadow: 0 0 10px var(--gold); animation: blink 0.5s ease-in-out infinite; }
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+#clock {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  color: var(--gold);
+  letter-spacing: 2px;
+}
+
+/* ── RUN BUTTON ── */
+.run-btn {
+  background: linear-gradient(135deg, rgba(201,168,76,0.15), rgba(201,168,76,0.05));
+  border: 1px solid var(--gold);
+  color: var(--gold-bright);
+  font-family: 'Orbitron', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  padding: 10px 24px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  position: relative;
+  overflow: hidden;
+  clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+}
+
+.run-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent, rgba(201,168,76,0.1));
+  transform: translateX(-100%);
+  transition: transform 0.3s;
+}
+
+.run-btn:hover::before { transform: translateX(0); }
+.run-btn:hover {
+  box-shadow: 0 0 20px var(--gold-glow), inset 0 0 20px rgba(201,168,76,0.1);
+  color: #fff;
+}
+
+.run-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── MAIN LAYOUT ── */
+main {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  grid-template-rows: auto 1fr;
+  min-height: calc(100vh - 72px);
+}
+
+/* ── 3D PANEL ── */
+#three-panel {
+  grid-row: 1 / 3;
+  background: linear-gradient(180deg, rgba(13,16,23,0.9) 0%, rgba(8,10,14,0.95) 100%);
+  border-right: 1px solid var(--border);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+#three-canvas {
+  width: 100%;
+  height: 240px;
+  border: 1px solid var(--border);
+  background: transparent;
+}
+
+.panel-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-label::before {
+  content: '//';
+  color: var(--gold-dim);
+}
+
+/* ── STAT ROWS ── */
+.stat-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(201,168,76,0.04);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--gold-dim);
+  transition: all 0.2s;
+}
+
+.stat-item:hover {
+  background: rgba(201,168,76,0.08);
+  border-left-color: var(--gold);
+}
+
+.stat-item.risk { border-left-color: var(--red); }
+.stat-item.warn { border-left-color: var(--warn); }
+.stat-item.ok   { border-left-color: var(--ok); }
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.stat-value {
+  font-family: 'Orbitron', monospace;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.stat-item.risk .stat-value { color: #e74c3c; text-shadow: 0 0 10px var(--red-glow); }
+.stat-item.warn .stat-value { color: #e67e22; text-shadow: 0 0 10px var(--warn-glow); }
+.stat-item.ok   .stat-value { color: #2ecc71; text-shadow: 0 0 10px var(--ok-glow); }
+
+/* ── PROGRESS BARS ── */
+.progress-wrap {
+  margin-top: 4px;
+}
+
+.progress-bar-outer {
+  height: 4px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.progress-bar-inner {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-bar-inner.risk { background: linear-gradient(90deg, var(--red), #e74c3c); }
+.progress-bar-inner.warn { background: linear-gradient(90deg, var(--warn), #e67e22); }
+.progress-bar-inner.ok   { background: linear-gradient(90deg, var(--ok), #2ecc71); }
+
+/* ── DOUGHNUT CHART ── */
+.chart-wrap {
+  padding: 12px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  position: relative;
+}
+
+.chart-wrap canvas { max-height: 180px; }
+
+/* ── CONTENT AREA ── */
+.content-area {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+/* ── SECTION HEADER ── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-title::before {
+  content: '';
+  display: block;
+  width: 3px;
+  height: 16px;
+  background: var(--gold);
+  box-shadow: 0 0 8px var(--gold);
+}
+
+/* ── TOP METRICS ROW ── */
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.metric-card {
+  background: linear-gradient(135deg, rgba(13,16,23,0.95), rgba(18,22,31,0.9));
+  border: 1px solid var(--border);
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+}
+
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  opacity: 0.5;
+}
+
+.metric-card:hover {
+  border-color: var(--border-bright);
+  background: linear-gradient(135deg, rgba(18,22,31,0.98), rgba(26,32,48,0.95));
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(201,168,76,0.08);
+}
+
+.metric-icon {
+  font-size: 22px;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.metric-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.metric-value {
+  font-family: 'Orbitron', monospace;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--gold-bright);
+  text-shadow: 0 0 16px var(--gold-glow);
+  line-height: 1;
+}
+
+.metric-sub {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* ── FILTER BAR ── */
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  padding: 5px 14px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.2s;
+}
+
+.filter-btn:hover { color: var(--gold); border-color: var(--border-bright); }
+.filter-btn.active {
+  background: rgba(201,168,76,0.12);
+  border-color: var(--gold);
+  color: var(--gold-bright);
+  box-shadow: 0 0 10px rgba(201,168,76,0.15);
+}
+
+.filter-btn.f-risk.active  { background: rgba(192,57,43,0.15); border-color: #e74c3c; color: #e74c3c; }
+.filter-btn.f-warn.active  { background: rgba(192,120,32,0.15); border-color: #e67e22; color: #e67e22; }
+.filter-btn.f-ok.active    { background: rgba(46,125,82,0.15); border-color: #2ecc71; color: #2ecc71; }
+
+.filter-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+}
+
+/* ── FINDINGS TABLE ── */
+.findings-table-wrap {
+  border: 1px solid var(--border);
+  background: rgba(8,10,14,0.8);
+  overflow: hidden;
+}
+
+.findings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.findings-table thead tr {
+  background: linear-gradient(90deg, rgba(201,168,76,0.1), rgba(201,168,76,0.05));
+  border-bottom: 1px solid var(--border-bright);
+}
+
+.findings-table th {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--gold-dim);
+  text-transform: uppercase;
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 400;
+}
+
+.findings-table tbody tr {
+  border-bottom: 1px solid rgba(201,168,76,0.06);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.findings-table tbody tr:hover {
+  background: rgba(201,168,76,0.05);
+}
+
+.findings-table tbody tr.expanded {
+  background: rgba(201,168,76,0.05);
+}
+
+.findings-table td {
+  padding: 10px 14px;
+  vertical-align: middle;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.findings-table td:first-child {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.expand-row td {
+  padding: 0;
+  background: rgba(0,0,0,0.4);
+  border-bottom: 1px solid var(--border-bright);
+}
+
+.expand-content {
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  font-size: 12px;
+}
+
+.expand-field label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--gold-dim);
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.expand-field p {
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.expand-field.full { grid-column: 1 / 3; }
+
+.rec-text {
+  background: rgba(201,168,76,0.06);
+  border-left: 2px solid var(--gold-dim);
+  padding: 8px 12px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--text-bright);
+  line-height: 1.6;
+}
+
+/* ── PILL ── */
+.pill {
+  display: inline-block;
+  padding: 3px 10px;
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  border-radius: 2px;
+  clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
+}
+
+.pill.RISK    { background: rgba(192,57,43,0.25); color: #ff6b6b; border: 1px solid rgba(192,57,43,0.5); }
+.pill.WARNING { background: rgba(192,120,32,0.25); color: #ffaa44; border: 1px solid rgba(192,120,32,0.5); }
+.pill.OK      { background: rgba(46,125,82,0.25); color: #5dde8a; border: 1px solid rgba(46,125,82,0.5); }
+
+/* ── SCORE BAR ── */
+.score-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.score-num {
+  font-family: 'Orbitron', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  width: 24px;
+}
+
+.score-num.s85 { color: #e74c3c; }
+.score-num.s55 { color: #e67e22; }
+.score-num.s10 { color: #2ecc71; }
+
+.score-track {
+  flex: 1;
+  height: 3px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  max-width: 60px;
+}
+
+.score-fill {
+  height: 100%;
+  border-radius: 2px;
+}
+
+.score-fill.s85 { background: #e74c3c; width: 100%; }
+.score-fill.s55 { background: #e67e22; width: 65%; }
+.score-fill.s10 { background: #2ecc71; width: 12%; }
+
+/* ── PRIORITY SECTION ── */
+.priority-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.priority-item {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  background: rgba(192,57,43,0.06);
+  border: 1px solid rgba(192,57,43,0.2);
+  border-left: 3px solid #e74c3c;
+  transition: all 0.2s;
+}
+
+.priority-item:hover {
+  background: rgba(192,57,43,0.1);
+  border-left-color: #ff6b6b;
+}
+
+.priority-item.warn {
+  background: rgba(192,120,32,0.06);
+  border-color: rgba(192,120,32,0.2);
+  border-left-color: #e67e22;
+}
+
+.priority-item.warn:hover {
+  background: rgba(192,120,32,0.1);
+  border-left-color: #ffaa44;
+}
+
+.priority-id {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--gold-dim);
+  white-space: nowrap;
+  padding-top: 1px;
+  min-width: 70px;
+}
+
+.priority-body {}
+
+.priority-check {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 3px;
+}
+
+.priority-rec {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* ── HISTORY SECTION ── */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: rgba(13,16,23,0.8);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.history-item:hover {
+  background: rgba(201,168,76,0.05);
+  border-color: var(--border-bright);
+}
+
+.history-date {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--gold-dim);
+  min-width: 100px;
+}
+
+.history-counts {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+}
+
+.h-count {
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.h-count .dot-sm {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+}
+
+.h-count.ok  .dot-sm { background: #2ecc71; }
+.h-count.warn .dot-sm { background: #e67e22; }
+.h-count.risk .dot-sm { background: #e74c3c; }
+.h-count.ok  { color: #2ecc71; }
+.h-count.warn { color: #e67e22; }
+.h-count.risk { color: #e74c3c; }
+
+.history-trend {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 2px;
+}
+
+.history-trend.improved { background: rgba(46,125,82,0.2); color: #2ecc71; border: 1px solid rgba(46,125,82,0.3); }
+.history-trend.worse    { background: rgba(192,57,43,0.2); color: #e74c3c; border: 1px solid rgba(192,57,43,0.3); }
+.history-trend.same     { background: rgba(201,168,76,0.1); color: var(--gold-dim); border: 1px solid var(--border); }
+
+/* ── DOWNLOAD BUTTONS ── */
+.dl-row {
+  display: flex;
+  gap: 10px;
+}
+
+.dl-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  padding: 8px 16px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.dl-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: rgba(201,168,76,0.06);
+}
+
+/* ── BAR CHART WRAP ── */
+.bar-chart-wrap {
+  background: rgba(8,10,14,0.8);
+  border: 1px solid var(--border);
+  padding: 16px;
+}
+
+.bar-chart-wrap canvas { max-height: 180px; }
+
+/* ── RUNNING OVERLAY ── */
+#running-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8,10,14,0.92);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  display: none;
+}
+
+.running-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--gold-bright);
+  letter-spacing: 4px;
+  text-shadow: 0 0 20px var(--gold-glow);
+}
+
+.running-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 400px;
+}
+
+.running-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+  opacity: 0.3;
+  transition: all 0.4s;
+}
+
+.running-step.active {
+  opacity: 1;
+  color: var(--gold);
+}
+
+.running-step.done {
+  opacity: 0.6;
+  color: #2ecc71;
+}
+
+.step-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.running-step.active .step-dot {
+  background: var(--gold);
+  box-shadow: 0 0 10px var(--gold);
+  animation: blink 0.4s ease-in-out infinite;
+}
+
+.running-step.done .step-dot {
+  background: #2ecc71;
+  box-shadow: 0 0 8px var(--ok);
+}
+
+.scan-line {
+  width: 400px;
+  height: 2px;
+  background: rgba(201,168,76,0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.scan-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold-dim), var(--gold-bright));
+  width: 0%;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px var(--gold);
+}
+
+/* ── TABS ── */
+.tab-panels > div { display: none; }
+.tab-panels > div.active { display: flex; flex-direction: column; gap: 20px; }
+
+/* ── GRID FOR CHARTS ── */
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 16px;
+}
+
+/* ── CORNER DECORATIONS ── */
+.corner-dec {
+  position: absolute;
+  width: 16px; height: 16px;
+  border-color: var(--gold-dim);
+  border-style: solid;
+  opacity: 0.6;
+}
+
+/* ── TICKER ── */
+.ticker {
+  background: rgba(8,10,14,0.95);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.ticker-inner {
+  display: flex;
+  gap: 48px;
+  animation: ticker-scroll 30s linear infinite;
+  white-space: nowrap;
+}
+
+.ticker-item {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ticker-item .sep { color: var(--gold-dim); }
+
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* ── EMPTY STATE ── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  gap: 16px;
+  border: 1px dashed var(--border);
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 48px;
+  opacity: 0.3;
+}
+
+.empty-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 14px;
+  color: var(--gold-dim);
+  letter-spacing: 3px;
+}
+
+.empty-sub {
+  font-size: 12px;
+  color: var(--text-dim);
+  max-width: 300px;
+  line-height: 1.6;
+}
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<div id="app">
+
+<!-- TICKER -->
+<div class="ticker">
+  <div class="ticker-inner" id="ticker-inner">
+    <span class="ticker-item"><span class="sep">▶</span> SSHCR COMMAND CENTER <span class="sep">//</span> SECURE SYSTEMS HEALTH & CYBER READINESS <span class="sep">▶</span> LIFE SCIENCES REGULATED ENVIRONMENT <span class="sep">//</span> ASSESSMENT PLATFORM v1.0.0 <span class="sep">▶</span> ALL SYSTEMS NOMINAL <span class="sep">//</span> AWAITING ASSESSMENT ORDER</span>
+    <span class="ticker-item"><span class="sep">▶</span> SSHCR COMMAND CENTER <span class="sep">//</span> SECURE SYSTEMS HEALTH & CYBER READINESS <span class="sep">▶</span> LIFE SCIENCES REGULATED ENVIRONMENT <span class="sep">//</span> ASSESSMENT PLATFORM v1.0.0 <span class="sep">▶</span> ALL SYSTEMS NOMINAL <span class="sep">//</span> AWAITING ASSESSMENT ORDER</span>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="header-left">
+    <div class="badge-emblem">
+      <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M24 2L44 10V24C44 34 35 42 24 46C13 42 4 34 4 24V10L24 2Z" fill="rgba(201,168,76,0.1)" stroke="#c9a84c" stroke-width="1.5"/>
+        <path d="M24 8L38 14V24C38 31 32 37 24 40C16 37 10 31 10 24V14L24 8Z" fill="rgba(201,168,76,0.06)" stroke="#c9a84c" stroke-width="1" opacity="0.6"/>
+        <text x="24" y="28" text-anchor="middle" font-family="Orbitron" font-size="12" font-weight="900" fill="#c9a84c">SSH</text>
+        <circle cx="24" cy="18" r="3" fill="#c9a84c" opacity="0.8"/>
+        <line x1="14" y1="32" x2="34" y2="32" stroke="#c9a84c" stroke-width="1" opacity="0.4"/>
+      </svg>
+    </div>
+    <div class="header-title">
+      <h1>SSHCR</h1>
+      <span class="sub">COMMAND OPERATIONS CENTER</span>
+    </div>
+  </div>
+
+  <div class="header-center">
+    <button class="nav-btn active" onclick="switchTab('overview')">Overview</button>
+    <button class="nav-btn" onclick="switchTab('findings')">Findings</button>
+    <button class="nav-btn" onclick="switchTab('history')">History</button>
+    <button class="nav-btn" onclick="switchTab('reports')">Reports</button>
+  </div>
+
+  <div class="header-right">
+    <div class="status-indicator">
+      <div class="dot idle" id="status-dot"></div>
+      <span id="status-text">STANDBY</span>
+    </div>
+    <div id="clock">--:--:--</div>
+    <button class="run-btn" id="run-btn" onclick="runAssessment()">▶ RUN ASSESSMENT</button>
+  </div>
+</header>
+
+<!-- RUNNING OVERLAY -->
+<div id="running-overlay">
+  <div class="running-title">ASSESSMENT IN PROGRESS</div>
+  <div class="running-steps">
+    <div class="running-step" id="step-sys"><div class="step-dot"></div>INITIALISING SYSTEM HEALTH CHECKS</div>
+    <div class="running-step" id="step-net"><div class="step-dot"></div>SCANNING NETWORK INTERFACES & PORTS</div>
+    <div class="running-step" id="step-sec"><div class="step-dot"></div>RUNNING SECURITY BASELINE EVALUATION</div>
+    <div class="running-step" id="step-rep"><div class="step-dot"></div>COMPILING FINDINGS & GENERATING REPORT</div>
+  </div>
+  <div class="scan-line"><div class="scan-fill" id="scan-fill"></div></div>
+  <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim)" id="scan-pct">0%</div>
+</div>
+
+<!-- MAIN -->
+<main>
+
+  <!-- LEFT 3D PANEL -->
+  <div id="three-panel">
+    <div class="panel-label">THREAT VISUALISER</div>
+    <canvas id="three-canvas"></canvas>
+
+    <div class="panel-label">RISK DISTRIBUTION</div>
+    <div class="stat-row">
+      <div class="stat-item risk">
+        <div>
+          <div class="stat-label">Critical Risk</div>
+          <div class="progress-bar-outer"><div class="progress-bar-inner risk" id="bar-risk" style="width:0%"></div></div>
+        </div>
+        <div class="stat-value" id="count-risk">0</div>
+      </div>
+      <div class="stat-item warn">
+        <div>
+          <div class="stat-label">Warning</div>
+          <div class="progress-bar-outer"><div class="progress-bar-inner warn" id="bar-warn" style="width:0%"></div></div>
+        </div>
+        <div class="stat-value" id="count-warn">0</div>
+      </div>
+      <div class="stat-item ok">
+        <div>
+          <div class="stat-label">Secure</div>
+          <div class="progress-bar-outer"><div class="progress-bar-inner ok" id="bar-ok" style="width:0%"></div></div>
+        </div>
+        <div class="stat-value" id="count-ok">0</div>
+      </div>
+    </div>
+
+    <div class="panel-label">ASSESSMENT CHART</div>
+    <div class="chart-wrap">
+      <canvas id="doughnut-chart"></canvas>
+    </div>
+
+    <div class="panel-label">LAST ASSESSMENT</div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);padding:8px 0" id="last-run-time">— NOT YET RUN —</div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content-area">
+    <div class="tab-panels">
+
+      <!-- OVERVIEW TAB -->
+      <div id="tab-overview" class="active">
+
+        <div>
+          <div class="section-header">
+            <div class="section-title">OPERATIONAL STATUS</div>
+          </div>
+          <div class="metrics-row">
+            <div class="metric-card">
+              <span class="metric-icon">🛡️</span>
+              <div class="metric-label">Total Checks</div>
+              <div class="metric-value" id="m-total">—</div>
+              <div class="metric-sub">EVALUATED</div>
+            </div>
+            <div class="metric-card">
+              <span class="metric-icon">⚠️</span>
+              <div class="metric-label">Risk Score</div>
+              <div class="metric-value" id="m-score" style="font-size:22px">—</div>
+              <div class="metric-sub">COMPOSITE</div>
+            </div>
+            <div class="metric-card">
+              <span class="metric-icon">🔒</span>
+              <div class="metric-label">Secure</div>
+              <div class="metric-value" id="m-secure">—</div>
+              <div class="metric-sub">PASSING</div>
+            </div>
+            <div class="metric-card">
+              <span class="metric-icon">📋</span>
+              <div class="metric-label">Actions Req.</div>
+              <div class="metric-value" id="m-actions">—</div>
+              <div class="metric-sub">REMEDIATIONS</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-header">
+            <div class="section-title">PRIORITY REMEDIATION</div>
+          </div>
+          <div class="priority-list" id="priority-list">
+            <div class="empty-state">
+              <div class="empty-icon">🔍</div>
+              <div class="empty-title">NO ASSESSMENT DATA</div>
+              <div class="empty-sub">Run an assessment to populate priority remediation findings</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-header">
+            <div class="section-title">DOMAIN ANALYSIS</div>
+          </div>
+          <div class="bar-chart-wrap">
+            <canvas id="bar-chart"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- FINDINGS TAB -->
+      <div id="tab-findings">
+
+        <div>
+          <div class="section-header">
+            <div class="section-title">ALL FINDINGS</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim)" id="findings-count">0 ENTRIES</div>
+          </div>
+          <div class="filter-bar">
+            <button class="filter-btn active" onclick="setFilter('ALL',this)">ALL</button>
+            <div class="filter-divider"></div>
+            <button class="filter-btn f-risk" onclick="setFilter('RISK',this)">⬤ RISK</button>
+            <button class="filter-btn f-warn" onclick="setFilter('WARNING',this)">⬤ WARNING</button>
+            <button class="filter-btn f-ok" onclick="setFilter('OK',this)">⬤ OK</button>
+            <div class="filter-divider"></div>
+            <button class="filter-btn" onclick="setCatFilter('System',this)">SYSTEM</button>
+            <button class="filter-btn" onclick="setCatFilter('Network',this)">NETWORK</button>
+            <button class="filter-btn" onclick="setCatFilter('Security',this)">SECURITY</button>
+            <button class="filter-btn" onclick="setCatFilter('Storage',this)">STORAGE</button>
+          </div>
+        </div>
+
+        <div class="findings-table-wrap">
+          <table class="findings-table">
+            <thead>
+              <tr>
+                <th>Control ID</th>
+                <th>Category</th>
+                <th>Check</th>
+                <th>Status</th>
+                <th>Score</th>
+                <th>Confidence</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody id="findings-tbody">
+              <tr>
+                <td colspan="7">
+                  <div class="empty-state">
+                    <div class="empty-icon">📡</div>
+                    <div class="empty-title">AWAITING SCAN DATA</div>
+                    <div class="empty-sub">Run an assessment from the header to populate this table</div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- HISTORY TAB -->
+      <div id="tab-history">
+        <div>
+          <div class="section-header">
+            <div class="section-title">ASSESSMENT HISTORY</div>
+          </div>
+          <div class="history-list" id="history-list">
+            <div class="empty-state">
+              <div class="empty-icon">📂</div>
+              <div class="empty-title">NO HISTORY YET</div>
+              <div class="empty-sub">Previous assessment runs will appear here once you run your first scan</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- REPORTS TAB -->
+      <div id="tab-reports">
+        <div>
+          <div class="section-header">
+            <div class="section-title">DOWNLOAD REPORTS</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);margin-bottom:8px">
+              LAST ASSESSMENT: <span id="dl-date" style="color:var(--gold)">NOT YET RUN</span>
+            </div>
+            <div class="dl-row">
+              <button class="dl-btn" id="dl-html" onclick="downloadHTML()">⬇ HTML REPORT</button>
+              <button class="dl-btn" id="dl-json" onclick="downloadJSON()">⬇ JSON EXPORT</button>
+              <button class="dl-btn" id="dl-csv" onclick="downloadCSV()">⬇ CSV EXPORT</button>
+            </div>
+            <div style="font-size:12px;color:var(--text-dim);line-height:1.6;margin-top:8px;padding:12px;border:1px solid var(--border);background:rgba(0,0,0,0.3)">
+              💡 For PDF export, open the HTML report in your browser and use <strong style="color:var(--gold)">Ctrl+P → Save as PDF</strong>.
+              For automated PDF generation, run: <span style="font-family:'Share Tech Mono',monospace;color:var(--gold-bright)">sudo python3 src/main.py --full-assessment --output pdf</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+</div>
+
+<script>
+// ── API HELPERS ────────────────────────────────────────────
+const API = {
+  status: "/api/status",
+  assess: "/api/assess",
+  history: "/api/history",
+  reports: "/api/reports",
+};
+
+async function fetchJSON(url, opts = {}) {
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`${res.status} ${res.statusText}: ${text}`);
+  }
+  return res.json();
+}
+
+function setTickerWarning(text) {
+  const ticker = document.getElementById('ticker-inner');
+  if (!ticker) return;
+  const existing = document.getElementById('ticker-warning');
+  if (existing) return;
+  const span = document.createElement('span');
+  span.className = 'ticker-item';
+  span.id = 'ticker-warning';
+  span.innerHTML = `<span class="sep">⚠</span> ${text} <span class="sep">⚠</span>`;
+  ticker.prepend(span);
+}
+
+// ── STATE ──────────────────────────────────────────────────
+let currentData = null;
+let currentFilter = 'ALL';
+let currentCatFilter = null;
+let history = [];
+let doughnutChart = null;
+let barChart = null;
+let latestReportFile = null;
+
+// ── CLOCK ──────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toTimeString().slice(0,8);
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── THREE.JS SCENE ─────────────────────────────────────────
+function initThree() {
+  const canvas = document.getElementById('three-canvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  renderer.setSize(w, h);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
+  camera.position.set(0, 0, 5);
+
+  // Lights
+  const amb = new THREE.AmbientLight(0xffd700, 0.3);
+  scene.add(amb);
+  const pt = new THREE.PointLight(0xc9a84c, 2, 20);
+  pt.position.set(3, 3, 3);
+  scene.add(pt);
+  const pt2 = new THREE.PointLight(0x4466ff, 1, 20);
+  pt2.position.set(-3, -2, 2);
+  scene.add(pt2);
+
+  // Shield geometry (octahedron as base)
+  const shieldGeo = new THREE.OctahedronGeometry(1.2, 0);
+  const shieldMat = new THREE.MeshPhongMaterial({
+    color: 0xc9a84c,
+    emissive: 0x7a5010,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.6,
+  });
+  const shield = new THREE.Mesh(shieldGeo, shieldMat);
+  scene.add(shield);
+
+  // Inner solid
+  const innerGeo = new THREE.OctahedronGeometry(0.8, 0);
+  const innerMat = new THREE.MeshPhongMaterial({
+    color: 0x1a2030,
+    emissive: 0x0d1017,
+    transparent: true,
+    opacity: 0.8,
+  });
+  const inner = new THREE.Mesh(innerGeo, innerMat);
+  scene.add(inner);
+
+  // Orbit ring
+  const ringGeo = new THREE.TorusGeometry(1.8, 0.02, 8, 60);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xc9a84c, transparent: true, opacity: 0.4 });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = Math.PI / 3;
+  scene.add(ring);
+
+  // Ring 2
+  const ring2Geo = new THREE.TorusGeometry(1.5, 0.015, 8, 60);
+  const ring2Mat = new THREE.MeshBasicMaterial({ color: 0x4466ff, transparent: true, opacity: 0.25 });
+  const ring2 = new THREE.Mesh(ring2Geo, ring2Mat);
+  ring2.rotation.x = -Math.PI / 4;
+  ring2.rotation.z = Math.PI / 6;
+  scene.add(ring2);
+
+  // Orbiting dots
+  const dotGeo = new THREE.SphereGeometry(0.06, 8, 8);
+  const dotMat = new THREE.MeshBasicMaterial({ color: 0xf0c040 });
+  const dots = [];
+  for (let i = 0; i < 5; i++) {
+    const dot = new THREE.Mesh(dotGeo, dotMat);
+    scene.add(dot);
+    dots.push({ mesh: dot, angle: (i / 5) * Math.PI * 2, radius: 1.8, speed: 0.008 + i * 0.002 });
+  }
+
+  // Grid floor
+  const gridHelper = new THREE.GridHelper(6, 10, 0x2a3040, 0x1a2030);
+  gridHelper.position.y = -2;
+  scene.add(gridHelper);
+
+  let t = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    t += 0.01;
+    shield.rotation.y += 0.008;
+    shield.rotation.x = Math.sin(t * 0.5) * 0.2;
+    inner.rotation.y -= 0.012;
+    inner.rotation.z += 0.005;
+    ring.rotation.z += 0.003;
+    ring2.rotation.y += 0.005;
+
+    dots.forEach(d => {
+      d.angle += d.speed;
+      d.mesh.position.x = Math.cos(d.angle) * d.radius;
+      d.mesh.position.z = Math.sin(d.angle) * d.radius;
+      d.mesh.position.y = Math.sin(d.angle * 2) * 0.4;
+    });
+
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+// ── CHARTS ─────────────────────────────────────────────────
+function initCharts() {
+  const dCtx = document.getElementById('doughnut-chart').getContext('2d');
+  doughnutChart = new Chart(dCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['OK', 'WARNING', 'RISK'],
+      datasets: [{
+        data: [0, 0, 0],
+        backgroundColor: ['rgba(46,125,82,0.7)', 'rgba(192,120,32,0.7)', 'rgba(192,57,43,0.7)'],
+        borderColor: ['#2ecc71', '#e67e22', '#e74c3c'],
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '65%',
+      plugins: {
+        legend: {
+          labels: { color: '#6b6040', font: { family: 'Share Tech Mono', size: 10 }, boxWidth: 10 }
+        }
+      }
+    }
+  });
+
+  const bCtx = document.getElementById('bar-chart').getContext('2d');
+  barChart = new Chart(bCtx, {
+    type: 'bar',
+    data: {
+      labels: ['System', 'Storage', 'Services', 'Logs', 'Network', 'Security'],
+      datasets: [
+        { label: 'OK',      data: [0,0,0,0,0,0], backgroundColor: 'rgba(46,125,82,0.6)',   borderColor: '#2ecc71', borderWidth: 1 },
+        { label: 'WARNING', data: [0,0,0,0,0,0], backgroundColor: 'rgba(192,120,32,0.6)',  borderColor: '#e67e22', borderWidth: 1 },
+        { label: 'RISK',    data: [0,0,0,0,0,0], backgroundColor: 'rgba(192,57,43,0.6)',   borderColor: '#e74c3c', borderWidth: 1 },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: '#6b6040', font: { family: 'Share Tech Mono', size: 9 }, boxWidth: 8 } }
+      },
+      scales: {
+        x: { stacked: true, ticks: { color: '#6b6040', font: { family: 'Share Tech Mono', size: 9 } }, grid: { color: 'rgba(201,168,76,0.06)' } },
+        y: { stacked: true, ticks: { color: '#6b6040', font: { family: 'Share Tech Mono', size: 9 } }, grid: { color: 'rgba(201,168,76,0.06)' } }
+      }
+    }
+  });
+}
+
+// ── RUN ASSESSMENT ─────────────────────────────────────────
+async function runAssessment() {
+  const overlay = document.getElementById('running-overlay');
+  overlay.style.display = 'flex';
+
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+
+  const dot = document.getElementById('status-dot');
+  const statusTxt = document.getElementById('status-text');
+  dot.className = 'dot running';
+  statusTxt.textContent = 'SCANNING';
+
+  const fill = document.getElementById('scan-fill');
+  const pct = document.getElementById('scan-pct');
+  const stepSys = document.getElementById('step-sys');
+  const stepNet = document.getElementById('step-net');
+  const stepSec = document.getElementById('step-sec');
+  const stepRep = document.getElementById('step-rep');
+
+  function setStepState(el, state) {
+    if (!el) return;
+    el.className = 'running-step ' + state;
+  }
+
+  function updateSteps(progress) {
+    if (progress < 25) {
+      setStepState(stepSys, 'active');
+      setStepState(stepNet, '');
+      setStepState(stepSec, '');
+      setStepState(stepRep, '');
+    } else if (progress < 55) {
+      setStepState(stepSys, 'done');
+      setStepState(stepNet, 'active');
+      setStepState(stepSec, '');
+      setStepState(stepRep, '');
+    } else if (progress < 80) {
+      setStepState(stepSys, 'done');
+      setStepState(stepNet, 'done');
+      setStepState(stepSec, 'active');
+      setStepState(stepRep, '');
+    } else {
+      setStepState(stepSys, 'done');
+      setStepState(stepNet, 'done');
+      setStepState(stepSec, 'done');
+      setStepState(stepRep, 'active');
+    }
+  }
+
+  try {
+    const start = await fetchJSON(API.assess, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ full: true }),
+    });
+
+    const jobId = start.job_id;
+    let done = false;
+
+    while (!done) {
+      const poll = await fetchJSON(`${API.assess}/${jobId}`);
+      const progress = poll.progress ?? 0;
+      fill.style.width = `${progress}%`;
+      pct.textContent = `${progress}%`;
+      updateSteps(progress);
+
+      if (poll.status === 'done') {
+        done = true;
+        finishAssessment(overlay, btn, dot, statusTxt, poll.result);
+      } else if (poll.status === 'error') {
+        throw new Error(poll.error || 'Assessment failed');
+      } else {
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
+  } catch (err) {
+    overlay.style.display = 'none';
+    btn.disabled = false;
+    dot.className = 'dot idle';
+    statusTxt.textContent = 'ERROR';
+    alert(`Assessment failed: ${err.message}`);
+  }
+}
+
+function finishAssessment(overlay, btn, dot, statusTxt, payload) {
+  currentData = payload;
+  latestReportFile = payload && payload.report_file
+    ? payload.report_file.split('/').pop()
+    : null;
+
+  overlay.style.display = 'none';
+  btn.disabled = false;
+  dot.className = 'dot';
+  statusTxt.textContent = 'COMPLETE';
+  setTimeout(() => { statusTxt.textContent = 'STANDBY'; }, 3000);
+
+  loadHistory().then(updateDashboard);
+}
+
+// ── UPDATE DASHBOARD ───────────────────────────────────────
+function updateDashboard() {
+  if (!currentData) return;
+  const { counts, findings } = currentData;
+  const total = (counts.OK || 0) + (counts.WARNING || 0) + (counts.RISK || 0);
+
+  // Sidebar stats
+  document.getElementById('count-risk').textContent = counts.RISK;
+  document.getElementById('count-warn').textContent = counts.WARNING;
+  document.getElementById('count-ok').textContent = counts.OK;
+  document.getElementById('bar-risk').style.width = total ? (counts.RISK / total * 100) + '%' : '0%';
+  document.getElementById('bar-warn').style.width = total ? (counts.WARNING / total * 100) + '%' : '0%';
+  document.getElementById('bar-ok').style.width = total ? (counts.OK / total * 100) + '%' : '0%';
+
+  // Doughnut
+  doughnutChart.data.datasets[0].data = [counts.OK, counts.WARNING, counts.RISK];
+  doughnutChart.update();
+
+  // Last run
+  const now = new Date().toLocaleString();
+  document.getElementById('last-run-time').textContent = now;
+  document.getElementById('dl-date').textContent = currentData.date;
+
+  // Metrics
+  document.getElementById('m-total').textContent = total;
+  const composite = total
+    ? Math.round((counts.RISK * 85 + counts.WARNING * 55 + counts.OK * 10) / total)
+    : 0;
+  document.getElementById('m-score').textContent = composite;
+  document.getElementById('m-secure').textContent = counts.OK;
+  document.getElementById('m-actions').textContent = counts.RISK + counts.WARNING;
+
+  // Priority
+  const riskFindings = findings.filter(f => f.status === 'RISK' || f.status === 'WARNING')
+    .sort((a,b) => b.risk_score - a.risk_score).slice(0,5);
+  const pl = document.getElementById('priority-list');
+  pl.innerHTML = riskFindings.map(f => `
+    <div class="priority-item ${f.status === 'WARNING' ? 'warn' : ''}">
+      <div class="priority-id">${f.control_id}</div>
+      <div class="priority-body">
+        <div class="priority-check">${f.check} <span class="pill ${f.status}">${f.status}</span></div>
+        <div class="priority-rec">${f.recommendation}</div>
+      </div>
+    </div>
+  `).join('');
+
+  // Bar chart by domain
+  const domains = ['System','Storage','Services','Logs','Network','Security'];
+  const okD=[],warnD=[],riskD=[];
+  domains.forEach(d => {
+    const df = findings.filter(f => f.category === d || f.category === d);
+    okD.push(df.filter(f=>f.status==='OK').length);
+    warnD.push(df.filter(f=>f.status==='WARNING').length);
+    riskD.push(df.filter(f=>f.status==='RISK').length);
+  });
+  barChart.data.datasets[0].data = okD;
+  barChart.data.datasets[1].data = warnD;
+  barChart.data.datasets[2].data = riskD;
+  barChart.update();
+
+  // Findings table
+  renderFindings();
+
+  // History
+  renderHistory();
+}
+
+// ── FINDINGS TABLE ─────────────────────────────────────────
+function renderFindings() {
+  if (!currentData) return;
+  let findings = [...currentData.findings];
+
+  if (currentFilter !== 'ALL') findings = findings.filter(f => f.status === currentFilter);
+  if (currentCatFilter) findings = findings.filter(f => f.category === currentCatFilter);
+
+  document.getElementById('findings-count').textContent = findings.length + ' ENTRIES';
+
+  const tbody = document.getElementById('findings-tbody');
+  if (findings.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">NO MATCHING FINDINGS</div><div class="empty-sub">Adjust your filters to see results</div></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = findings.map((f,i) => `
+    <tr onclick="toggleExpand(${i},'${f.control_id}')" id="row-${f.control_id}">
+      <td>${f.control_id}</td>
+      <td>${f.category}</td>
+      <td>${f.check}</td>
+      <td><span class="pill ${f.status}">${f.status}</span></td>
+      <td>
+        <div class="score-bar">
+          <div class="score-num s${f.risk_score}">${f.risk_score}</div>
+          <div class="score-track"><div class="score-fill s${f.risk_score}"></div></div>
+        </div>
+      </td>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim)">${f.confidence}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${f.details}</td>
+    </tr>
+    <tr class="expand-row" id="expand-${f.control_id}" style="display:none">
+      <td colspan="7">
+        <div class="expand-content">
+          <div class="expand-field">
+            <label>Details</label>
+            <p>${f.details}</p>
+          </div>
+          <div class="expand-field">
+            <label>Reason</label>
+            <p>${f.reason}</p>
+          </div>
+          <div class="expand-field full">
+            <label>Recommendation</label>
+            <div class="rec-text">${f.recommendation}</div>
+          </div>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function toggleExpand(i, id) {
+  const row = document.getElementById('row-' + id);
+  const exp = document.getElementById('expand-' + id);
+  const isOpen = exp.style.display !== 'none';
+  exp.style.display = isOpen ? 'none' : 'table-row';
+  if (row) row.classList.toggle('expanded', !isOpen);
+}
+
+// ── FILTERS ────────────────────────────────────────────────
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    if (['ALL','RISK','WARNING','OK'].some(s => b.textContent.includes(s))) b.classList.remove('active');
+  });
+  btn.classList.add('active');
+  renderFindings();
+}
+
+function setCatFilter(cat, btn) {
+  if (currentCatFilter === cat) {
+    currentCatFilter = null;
+    btn.classList.remove('active');
+  } else {
+    document.querySelectorAll('.filter-btn').forEach(b => {
+      if (['System','Network','Security','Storage'].some(s => b.textContent === s)) b.classList.remove('active');
+    });
+    currentCatFilter = cat;
+    btn.classList.add('active');
+  }
+  renderFindings();
+}
+
+// ── HISTORY ────────────────────────────────────────────────
+function renderHistory() {
+  const hl = document.getElementById('history-list');
+  if (history.length === 0) {
+    hl.innerHTML = `<div class="empty-state"><div class="empty-icon">📂</div><div class="empty-title">NO HISTORY YET</div></div>`;
+    return;
+  }
+  hl.innerHTML = history.map(h => `
+    <div class="history-item">
+      <div class="history-date">${h.date} ${h.time}</div>
+      <div class="history-counts">
+        <div class="h-count ok"><div class="dot-sm"></div>${h.counts.OK} OK</div>
+        <div class="h-count warn"><div class="dot-sm"></div>${h.counts.WARNING} WARN</div>
+        <div class="h-count risk"><div class="dot-sm"></div>${h.counts.RISK} RISK</div>
+      </div>
+      <div class="history-trend ${h.trend}">
+        ${h.trend === 'improved' ? '▼ IMPROVED' : h.trend === 'worse' ? '▲ DEGRADED' : '— STABLE'}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── DOWNLOADS ──────────────────────────────────────────────
+function downloadHTML() {
+  if (!currentData) return alert('Run an assessment first.');
+  if (latestReportFile) {
+    window.location.href = `${API.reports}/${latestReportFile}`;
+    return;
+  }
+  const content = document.documentElement.outerHTML;
+  const blob = new Blob([content], {type:'text/html'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `sshcr_report_${currentData.date}.html`; a.click();
+}
+
+function downloadJSON() {
+  if (!currentData) return alert('Run an assessment first.');
+  const blob = new Blob([JSON.stringify(currentData, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `sshcr_export_${currentData.date}.json`; a.click();
+}
+
+function downloadCSV() {
+  if (!currentData) return alert('Run an assessment first.');
+  const headers = ['control_id','category','check','status','risk_score','confidence','details','reason','recommendation'];
+  const rows = currentData.findings.map(f => headers.map(h => `"${(f[h]||'').toString().replace(/"/g,'""')}"`).join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `sshcr_export_${currentData.date}.csv`; a.click();
+}
+
+// ── TABS ───────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab-panels > div').forEach(d => d.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  event.target.classList.add('active');
+  if (tab === 'findings') renderFindings();
+}
+
+// ── LOADERS ────────────────────────────────────────────────
+async function loadStatus() {
+  try {
+    const status = await fetchJSON(API.status);
+    if (!status.privileged) {
+      setTickerWarning("SERVER RUNNING WITHOUT ROOT — SOME CHECKS WILL BE INCOMPLETE — RESTART WITH: sudo python3 app.py");
+    }
+  } catch (err) {
+    setTickerWarning("BACKEND OFFLINE — START WITH: sudo python3 app.py");
+  }
+}
+
+async function loadHistory() {
+  try {
+    const data = await fetchJSON(API.history);
+    history = (data || []).map((h, idx, arr) => {
+      let trend = 'same';
+      if (idx < arr.length - 1) {
+        const prev = arr[idx + 1];
+        if (prev && prev.counts) {
+          const pr = prev.counts.RISK || 0;
+          const cr = h.counts.RISK || 0;
+          trend = cr < pr ? 'improved' : cr > pr ? 'worse' : 'same';
+        }
+      }
+      return { ...h, trend };
+    });
+  } catch {
+    history = [];
+  }
+  renderHistory();
+}
+
+// ── INIT ───────────────────────────────────────────────────
+initThree();
+initCharts();
+loadStatus();
+loadHistory();
+</script>
+</body>
+</html>
